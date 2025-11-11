@@ -14,6 +14,9 @@ from src.db.session import Session, get_db
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Bcrypt limitation: only first 72 bytes are considered. We enforce/guard this.
+_BCRYPT_MAX_BYTES = 72
+
 # OAuth2 scheme for FastAPI security
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -28,13 +31,44 @@ class TokenData(BaseModel):
 
 # PUBLIC_INTERFACE
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its hashed value."""
+    """Verify a plain password against its hashed value.
+
+    Notes:
+        Bcrypt silently ignores bytes beyond 72. To avoid false positives and
+        passlib ValueErrors in some environments, we guard inputs:
+        - If password bytes >72, we return False rather than truncating during verify.
+          This encourages clients to correct the password and avoids ambiguous matches.
+    """
+    if plain_password is None:
+        return False
+    # Normalize to bytes length as bcrypt operates on bytes
+    try:
+        pw_bytes = plain_password.encode("utf-8")
+    except Exception:
+        return False
+    if len(pw_bytes) > _BCRYPT_MAX_BYTES:
+        # Do not attempt verify on overlong input to avoid ambiguity/errors
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 
 # PUBLIC_INTERFACE
 def get_password_hash(password: str) -> str:
-    """Hash a plain password for storage."""
+    """Hash a plain password for storage.
+
+    Behavior:
+        - If password bytes length >72 (bcrypt limit), we raise an HTTPException 422
+          so API callers get a clear validation error rather than silently truncating.
+        - Otherwise, proceed to hash.
+    """
+    if password is None:
+        raise HTTPException(status_code=422, detail="Password required")
+    try:
+        pw_bytes = password.encode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=422, detail="Password encoding error")
+    if len(pw_bytes) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="Password too long for bcrypt (max 72 bytes)")
     return pwd_context.hash(password)
 
 

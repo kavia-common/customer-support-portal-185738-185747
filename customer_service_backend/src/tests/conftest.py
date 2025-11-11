@@ -1,16 +1,21 @@
 import os
-import json
+import sys
 import pytest
 from typing import Dict
+
+# Ensure 'src' is importable whether tests run from repo root or container root
+# Insert the backend container root so 'src' can be found reliably.
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".."))
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from src.api.main import app
-from src.core.config import get_settings
 from src.db.session import Base, get_db
-from src.core.security import get_password_hash
 
 # Configure environment for tests
 TEST_DB_URL = "sqlite:///./test.db"  # file-backed sqlite to persist across sessions in same process

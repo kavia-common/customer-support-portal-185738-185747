@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-from src.api.main import app
 
 
 def test_register_returns_token(client: TestClient):
