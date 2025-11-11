@@ -69,11 +69,10 @@ def client() -> TestClient:
 
 
 def _register_user(client: TestClient, email: str, password: str = "password123", is_agent: bool = False):
-    res = client.post("/auth/register", json={"email": email, "password": password, "full_name": None, "is_agent": is_agent})
+    # Password is ignored; register returns a placeholder token but it is not required anywhere.
+    res = client.post("/auth/register", json={"email": email, "full_name": None, "is_agent": is_agent})
     assert res.status_code == 200, res.text
-    token = res.json().get("access_token")
-    assert token
-    return token
+    return res.json()
 
 
 @pytest.fixture
