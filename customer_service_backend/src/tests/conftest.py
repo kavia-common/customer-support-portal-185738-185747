@@ -3,8 +3,8 @@ import sys
 import pytest
 from typing import Dict
 
-# Ensure 'src' is importable whether tests run from repo root or container root
-# Insert the backend container root so 'src' can be found reliably.
+# Ensure 'src' is importable irrespective of pytest working directory.
+# Add the backend root (which contains the 'src' package) to sys.path early.
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".."))
 if _BACKEND_ROOT not in sys.path:
@@ -19,9 +19,9 @@ from src.db.session import Base, get_db
 
 # Configure environment for tests
 TEST_DB_URL = "sqlite:///./test.db"  # file-backed sqlite to persist across sessions in same process
-os.environ["DATABASE_URL"] = TEST_DB_URL
-os.environ["SECRET_KEY"] = "test-secret-key"
-os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "60"
+os.environ.setdefault("DATABASE_URL", TEST_DB_URL)
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 # Build an engine and session factory specific to tests
 engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})

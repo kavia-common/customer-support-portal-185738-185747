@@ -35,21 +35,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
     Notes:
         Bcrypt silently ignores bytes beyond 72. To avoid false positives and
-        passlib ValueErrors in some environments, we guard inputs:
-        - If password bytes >72, we return False rather than truncating during verify.
-          This encourages clients to correct the password and avoids ambiguous matches.
+        passlib ValueErrors, we guard inputs:
+        - If password bytes > 72, return False rather than verifying a truncated value.
     """
     if plain_password is None:
         return False
-    # Normalize to bytes length as bcrypt operates on bytes
     try:
         pw_bytes = plain_password.encode("utf-8")
     except Exception:
         return False
     if len(pw_bytes) > _BCRYPT_MAX_BYTES:
-        # Do not attempt verify on overlong input to avoid ambiguity/errors
         return False
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        # If the stored hash is invalid/corrupted, treat as non-match
+        return False
 
 
 # PUBLIC_INTERFACE
@@ -57,9 +58,7 @@ def get_password_hash(password: str) -> str:
     """Hash a plain password for storage.
 
     Behavior:
-        - If password bytes length >72 (bcrypt limit), we raise an HTTPException 422
-          so API callers get a clear validation error rather than silently truncating.
-        - Otherwise, proceed to hash.
+        - Enforces bcrypt's 72-byte input limit. If exceeded, raise HTTP 422 to prompt client correction.
     """
     if password is None:
         raise HTTPException(status_code=422, detail="Password required")
