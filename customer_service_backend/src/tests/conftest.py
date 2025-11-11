@@ -5,6 +5,7 @@ from typing import Dict
 
 # Ensure 'src' is importable irrespective of pytest working directory.
 # Add the backend root (which contains the 'src' package) to sys.path early.
+# Dev note: Run test suite with "PYTHONPATH=./src pytest -q" to avoid import path issues.
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, "..", ".."))
 if _BACKEND_ROOT not in sys.path:
