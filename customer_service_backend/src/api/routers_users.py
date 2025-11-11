@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.core.security import get_current_user, require_agent, get_password_hash
+from src.core.security import get_password_hash
 from src.db.models import User
 from src.db.schemas import UserPublic
 from src.db.session import get_db
@@ -21,11 +21,11 @@ class UserUpdateRequest(BaseModel):
 @router.get(
     "",
     response_model=List[UserPublic],
-    summary="List users (agent only)",
-    description="List all users. Requires agent role.",
+    summary="List users",
+    description="List all users publicly.",
 )
-def list_users(_: User = Depends(require_agent), db: Session = Depends(get_db)):
-    """List all users for admin/agent."""
+def list_users(db: Session = Depends(get_db)):
+    """List all users without authentication."""
     return db.query(User).all()
 
 
@@ -34,15 +34,13 @@ def list_users(_: User = Depends(require_agent), db: Session = Depends(get_db)):
     "/{user_id}",
     response_model=UserPublic,
     summary="Get user by ID",
-    description="Get a user by ID. Agents can view any user; others only themselves.",
+    description="Get a user by ID without authentication.",
 )
-def get_user_by_id(user_id: int, current: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get user details with RBAC."""
+def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
+    """Get user details without authentication."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not current.is_agent and current.id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this user")
     return user
 
 
@@ -51,15 +49,13 @@ def get_user_by_id(user_id: int, current: User = Depends(get_current_user), db: 
     "/{user_id}",
     response_model=UserPublic,
     summary="Update user",
-    description="Update user details. Agents can update any user; others only themselves.",
+    description="Update user details without authentication.",
 )
-def update_user(user_id: int, payload: UserUpdateRequest, current: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Update user profile/password with RBAC."""
+def update_user(user_id: int, payload: UserUpdateRequest, db: Session = Depends(get_db)):
+    """Update user profile/password without authentication."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not current.is_agent and current.id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to update this user")
 
     if payload.full_name is not None:
         user.full_name = payload.full_name

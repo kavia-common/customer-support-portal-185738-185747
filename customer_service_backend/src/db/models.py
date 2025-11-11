@@ -56,7 +56,8 @@ class Ticket(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
 
-    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # Allow anonymous creator (nullable)
+    creator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     assignee_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -65,7 +66,7 @@ class Ticket(Base):
     )
 
     # Relationships
-    creator: Mapped["User"] = relationship(back_populates="tickets_created", foreign_keys=[creator_id])
+    creator: Mapped[Optional["User"]] = relationship(back_populates="tickets_created", foreign_keys=[creator_id])
     assignee: Mapped[Optional["User"]] = relationship(back_populates="tickets_assigned", foreign_keys=[assignee_id])
     messages: Mapped[List["Message"]] = relationship(
         back_populates="ticket", cascade="all, delete-orphan", order_by="Message.created_at"
@@ -86,13 +87,14 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), nullable=False, index=True)
-    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # Allow anonymous author (nullable)
+    author_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     ticket: Mapped["Ticket"] = relationship(back_populates="messages")
-    author: Mapped["User"] = relationship(back_populates="messages")
+    author: Mapped[Optional["User"]] = relationship(back_populates="messages")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"Message(id={self.id!r}, ticket_id={self.ticket_id!r})"

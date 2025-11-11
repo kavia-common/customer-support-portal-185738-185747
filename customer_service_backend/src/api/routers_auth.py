@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from src.core.security import create_access_token, get_password_hash, verify_password, get_current_user
+from src.core.security import get_password_hash, verify_password
 from src.db.models import User
 from src.db.session import get_db
 
@@ -27,12 +27,11 @@ class RegisterRequest(BaseModel):
 # PUBLIC_INTERFACE
 @router.post(
     "/register",
-    response_model=TokenResponse,
-    summary="Register user",
-    description="Register a new user account and return a JWT access token.",
+    summary="Register user (no auth)",
+    description="Register a new user account without issuing tokens.",
 )
 def register_user(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """Register user and return token."""
+    """Register a user without returning a JWT."""
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -46,44 +45,30 @@ def register_user(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-
-    token = create_access_token(
-        {"sub": user.email, "is_agent": user.is_agent, "user_id": user.id}
-    )
-    return TokenResponse(access_token=token, token_type="bearer")
+    return {"message": "registered", "user_id": user.id}
 
 
 # PUBLIC_INTERFACE
 @router.post(
     "/login",
-    response_model=TokenResponse,
-    summary="User login",
-    description="Authenticate with email and password to obtain JWT access token.",
+    summary="User login (no-op)",
+    description="No authentication is required; endpoint is a no-op for compatibility.",
 )
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login with OAuth2 form (username=email)."""
+    """No-op login for compatibility; always returns a placeholder token."""
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
+        # To avoid leaking existence, still return 401 here
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-
-    token = create_access_token({"sub": user.email, "is_agent": user.is_agent, "user_id": user.id})
-    return TokenResponse(access_token=token, token_type="bearer")
+    return {"access_token": "disabled-auth", "token_type": "none"}
 
 
 # PUBLIC_INTERFACE
 @router.get(
     "/me",
-    summary="Current user",
-    description="Retrieve the current authenticated user's profile.",
+    summary="Current user (no-op)",
+    description="Auth disabled; returns a placeholder profile.",
 )
-def me(user: User = Depends(get_current_user)):
-    """Return minimal current user info."""
-    return {
-        "id": user.id,
-        "email": user.email,
-        "full_name": user.full_name,
-        "is_agent": user.is_agent,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at,
-    }
+def me():
+    """Return a placeholder indicating auth is disabled."""
+    return {"message": "authentication disabled"}

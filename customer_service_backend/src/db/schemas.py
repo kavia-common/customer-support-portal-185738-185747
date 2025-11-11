@@ -34,7 +34,7 @@ class TicketBase(BaseModel):
 
 
 class TicketCreate(TicketBase):
-    creator_id: int = Field(..., description="ID of the user who created the ticket")
+    creator_id: Optional[int] = Field(None, description="ID of the user who created the ticket (optional for anonymous)")
     assignee_id: Optional[int] = Field(None, description="ID of the agent assigned to the ticket, if any")
 
 
@@ -48,7 +48,7 @@ class TicketUpdate(BaseModel):
 class TicketPublic(TicketBase):
     id: int = Field(..., description="Ticket identifier")
     status: str = Field(..., description="Current status of the ticket")
-    creator_id: int = Field(..., description="Creator user ID")
+    creator_id: Optional[int] = Field(None, description="Creator user ID (optional for anonymous)")
     assignee_id: Optional[int] = Field(None, description="Assigned agent user ID")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last updated timestamp")
@@ -64,13 +64,13 @@ class MessageBase(BaseModel):
 
 class MessageCreate(MessageBase):
     ticket_id: int = Field(..., description="Ticket ID this message belongs to")
-    author_id: int = Field(..., description="User ID of the message author")
+    author_id: Optional[int] = Field(None, description="User ID of the message author (optional for anonymous)")
 
 
 class MessagePublic(MessageBase):
     id: int = Field(..., description="Message identifier")
     ticket_id: int = Field(..., description="Related ticket ID")
-    author_id: int = Field(..., description="Author user ID")
+    author_id: Optional[int] = Field(None, description="Author user ID (optional for anonymous)")
     created_at: datetime = Field(..., description="Creation timestamp")
 
     class Config:

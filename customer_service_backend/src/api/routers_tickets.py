@@ -3,8 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from src.core.security import get_current_user
-from src.db.models import Ticket, User
+from src.db.models import Ticket
 from src.db.schemas import TicketCreate, TicketPublic, TicketUpdate
 from src.db.session import get_db
 
@@ -16,12 +15,18 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
     "",
     response_model=TicketPublic,
     summary="Create ticket",
-    description="Create a support ticket. The creator is the authenticated user (customer or agent).",
+    description="Create a support ticket anonymously or with an optional creator_id if present.",
 )
-def create_ticket(payload: TicketCreate, current: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Create a new support ticket."""
-    if not current.is_agent and payload.creator_id != current.id:
-        raise HTTPException(status_code=403, detail="Cannot create ticket for other users")
+def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
+    """Create a new support ticket without authentication.
+
+    Authorization:
+        None. Anyone can create a ticket.
+
+    Behavior:
+        - If payload.creator_id is provided, it will be stored; otherwise, the ticket is created
+          without an associated creator (anonymous) when the schema/model allows it.
+    """
     ticket = Ticket(
         title=payload.title,
         description=payload.description,
@@ -40,19 +45,16 @@ def create_ticket(payload: TicketCreate, current: User = Depends(get_current_use
     "",
     response_model=List[TicketPublic],
     summary="List tickets",
-    description="List tickets. Agents see all; customers see only their own.",
+    description="List tickets publicly; optionally filter by status.",
 )
 def list_tickets(
     status: Optional[str] = Query(None, description="Filter by status"),
-    current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List tickets with RBAC and optional status filter."""
+    """List tickets without authentication with optional status filter."""
     q = db.query(Ticket)
     if status:
         q = q.filter(Ticket.status == status)
-    if not current.is_agent:
-        q = q.filter(Ticket.creator_id == current.id)
     return q.order_by(Ticket.created_at.desc()).all()
 
 
@@ -61,15 +63,13 @@ def list_tickets(
     "/{ticket_id}",
     response_model=TicketPublic,
     summary="Get ticket by ID",
-    description="Retrieve a ticket by ID. Customers must own it; agents can view any.",
+    description="Retrieve a ticket by ID without authentication.",
 )
-def get_ticket(ticket_id: int, current: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Retrieve a ticket with RBAC."""
+def get_ticket(ticket_id: int, db: Session = Depends(get_db)):
+    """Retrieve a ticket by ID."""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    if not current.is_agent and ticket.creator_id != current.id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this ticket")
     return ticket
 
 
@@ -78,31 +78,22 @@ def get_ticket(ticket_id: int, current: User = Depends(get_current_user), db: Se
     "/{ticket_id}",
     response_model=TicketPublic,
     summary="Update ticket",
-    description="Update ticket fields. Agents can update any; customers can update only title/description on their own tickets.",
+    description="Update ticket fields without authentication.",
 )
-def update_ticket(ticket_id: int, payload: TicketUpdate, current: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Update ticket respecting role-based constraints."""
+def update_ticket(ticket_id: int, payload: TicketUpdate, db: Session = Depends(get_db)):
+    """Update ticket fields. Public access; no role checks."""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
-
-    if not current.is_agent and ticket.creator_id != current.id:
-        raise HTTPException(status_code=403, detail="Not authorized to update this ticket")
-
-    # Customers: cannot change status or assignee
-    if not current.is_agent:
-        if payload.status is not None or payload.assignee_id is not None:
-            raise HTTPException(status_code=403, detail="Not allowed to change status/assignee")
 
     if payload.title is not None:
         ticket.title = payload.title
     if payload.description is not None:
         ticket.description = payload.description
-    if current.is_agent:
-        if payload.status is not None:
-            ticket.status = payload.status
-        if payload.assignee_id is not None:
-            ticket.assignee_id = payload.assignee_id
+    if payload.status is not None:
+        ticket.status = payload.status
+    if payload.assignee_id is not None:
+        ticket.assignee_id = payload.assignee_id
 
     db.add(ticket)
     db.commit()
